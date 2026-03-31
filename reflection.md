@@ -41,11 +41,12 @@
 **a. How you used AI**
 
 - I used Copilot Chat to translate the UML into dataclass-based code stubs, brainstorm small scheduling algorithms (sorting/filtering/conflict detection), and iterate on tests by generating missing edge-case coverage once I saw what the current suite didn’t test.
-- The most helpful prompts were “keep it minimal” requests (so changes stayed understandable), plus targeted questions like how the Scheduler should retrieve tasks from `Owner` and how to structure recurrence rollover for daily/weekly tasks.
+- The most helpful Copilot features were chat-based code generation and inline iteration (so I could adjust code in small steps). The most helpful prompts were “keep it minimal” requests (so changes stayed understandable), plus targeted questions like how the Scheduler should retrieve tasks from `Owner` and how to structure recurrence rollover for daily/weekly tasks.
 
 **b. Judgment and verification**
 
-- I did not accept suggestions that would have added complex “overlap duration” scheduling. Instead, I kept conflict detection lightweight (exact same start time) to preserve clarity and testability within this project’s scope.
+- I rejected/modified an AI suggestion that would have expanded conflict detection into full interval overlap analysis. I simplified it to exact start-time conflicts because it was easier to explain, test, and keep the scheduler readable.
+- I used separate chat sessions for different phases (design → implementation → algorithms → testing → UI/documentation) to keep my context organized and to avoid mixing decisions across phases.
 - I verified suggestions by running the CLI demo and then adding/adjusting `pytest` tests for the specific behavior (recurring rollover and conflict warnings), so changes were backed by green tests rather than assumptions.
 
 ---
@@ -76,4 +77,4 @@
 
 **c. Key takeaway**
 
-- My key takeaway is that AI is most effective when you treat it as a collaborator for drafts and options, but you keep ownership of system coherence through constraints and verification (tests + small incremental changes).
+- My key takeaway is that AI is most effective when you treat it as a collaborator for drafts and options, but you keep ownership of system coherence. As the “lead architect,” I had to choose the right amount of complexity, ensure the class model matched the final behavior, and use tests/documentation to lock in the design rather than just follow suggestions.
