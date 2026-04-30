@@ -78,3 +78,23 @@
 **c. Key takeaway**
 
 - My key takeaway is that AI is most effective when you treat it as a collaborator for drafts and options, but you keep ownership of system coherence. As the “lead architect,” I had to choose the right amount of complexity, ensure the class model matched the final behavior, and use tests/documentation to lock in the design rather than just follow suggestions.
+
+---
+
+## 6. Limitations, Biases, and Ethical Considerations
+
+**a. System limitations**
+
+- Conflict detection only catches exact same-time collisions, not overlapping durations. Two tasks at 8:00 and 8:15 (both 30 min) won't be flagged.
+- The AI agent's natural-language plans vary between runs due to LLM non-determinism. The self-check guardrail mitigates this but cannot guarantee identical outputs.
+- The system treats all pet species equally in scheduling. It does not account for species-specific care patterns (e.g., dogs needing outdoor time before meals).
+
+**b. Could the AI be misused?**
+
+- Users might over-rely on the AI-generated plan as authoritative veterinary advice. PawPal+ is a scheduling tool, not a medical advisor — this distinction should be clear in the UI.
+- Pet and owner data is sent to the Anthropic API for processing. Users should avoid entering sensitive personal information beyond scheduling needs.
+- To prevent unintended actions, the agent is **read-only by design**: it can observe the schedule through tools but cannot mark tasks complete, delete tasks, or modify any data. All mutations require explicit user action.
+
+**c. What surprised me during testing**
+
+- The agent sometimes called tools in unexpected orders (e.g., checking conflicts before retrieving the full schedule). Despite this, final plans were consistently accurate because each tool returns ground-truth data independent of call order. This reinforced that the tool-based architecture is resilient to LLM reasoning variability.

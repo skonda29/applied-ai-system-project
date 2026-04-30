@@ -1,3 +1,4 @@
+import os
 import streamlit as st
 
 from datetime import date
@@ -11,43 +12,28 @@ st.title("🐾 PawPal+")
 
 st.markdown(
     """
-Welcome to the PawPal+ starter app.
+Welcome to **PawPal+**, a pet care planning assistant powered by an AI agent.
 
-This file is intentionally thin. It gives you a working Streamlit app so you can start quickly,
-but **it does not implement the project logic**. Your job is to design the system and build it.
-
-Use this app as your interactive demo once your backend classes/functions exist.
+Add your pets and tasks below, then use the **AI Agent** to generate a smart care plan
+with conflict detection, prioritization advice, and natural-language explanations.
 """
 )
 
-with st.expander("Scenario", expanded=True):
+with st.expander("Scenario", expanded=False):
     st.markdown(
         """
-**PawPal+** is a pet care planning assistant. It helps a pet owner plan care tasks
-for their pet(s) based on constraints like time, priority, and preferences.
-
-You will design and implement the scheduling logic and connect it to this Streamlit UI.
-"""
-    )
-
-with st.expander("What you need to build", expanded=True):
-    st.markdown(
-        """
-At minimum, your system should:
-- Represent pet care tasks (what needs to happen, how long it takes, priority)
-- Represent the pet and the owner (basic info and preferences)
-- Build a plan/schedule for a day that chooses and orders tasks based on constraints
-- Explain the plan (why each task was chosen and when it happens)
+**PawPal+** helps pet owners plan daily care routines. The AI agent uses Claude
+to reason through your schedule step-by-step — retrieving tasks, detecting conflicts,
+and producing an explained care plan.
 """
     )
 
 st.divider()
 
-st.subheader("Quick Demo Inputs (wired to logic)")
+st.subheader("Setup")
 
 owner_name = st.text_input("Owner name", value="Jordan")
 
-# Streamlit reruns top-to-bottom; store the Owner in session_state so it persists.
 if "owner" not in st.session_state:
     st.session_state.owner = Owner(owner_name=owner_name)
 
@@ -111,8 +97,9 @@ elif selected_pet:
 
 st.divider()
 
-st.subheader("Build Schedule")
-st.caption("This button calls your scheduling logic and displays the result (sorted + conflict warnings).")
+# ── Deterministic Schedule ──────────────────────────────────────────
+st.subheader("Deterministic Schedule")
+st.caption("Uses the rule-based Scheduler to sort tasks and detect conflicts.")
 
 today = date.today()
 
@@ -124,8 +111,6 @@ if owner.pets:
 
 if st.button("Generate schedule"):
     scheduler = Scheduler()
-
-    # Build schedule items so we can optionally filter by pet and still show conflict warnings.
     pairs = scheduler.filter_tasks(owner=owner, day=today, pet_name=pet_filter_name, completed=False)
     schedule_items: list[dict] = []
     for pet, task in pairs:
@@ -141,7 +126,6 @@ if st.button("Generate schedule"):
                 "completed": task.completed,
             }
         )
-
     schedule_items.sort(key=lambda x: (x["time"], x["pet_name"], x["description"]))
     warnings = scheduler.detect_conflicts(schedule_items)
 
@@ -160,7 +144,6 @@ if st.button("Generate schedule"):
     )
 
     if warnings:
-        # Conflict warnings should be visually prominent and list all issues.
         st.warning("Scheduling conflicts detected:")
         for w in warnings:
             st.write(f"- {w}")
@@ -168,6 +151,61 @@ if st.button("Generate schedule"):
         st.success("No scheduling conflicts detected.")
 
 st.divider()
+
+# ── AI Agent Care Plan ──────────────────────────────────────────────
+st.subheader("🤖 AI Agent Care Plan")
+st.caption(
+    "Uses a Claude-powered multi-step agent that calls scheduling tools, "
+    "reasons about conflicts, and produces an explained care plan with self-validation."
+)
+
+api_key = st.text_input("Anthropic API Key", type="password", value=os.environ.get("ANTHROPIC_API_KEY", ""))
+user_request = st.text_area(
+    "What would you like the agent to do?",
+    value="Build a complete care plan for today. Highlight any conflicts and suggest how to resolve them.",
+)
+
+if st.button("Run AI Agent", disabled=not owner.pets):
+    if not api_key:
+        st.error("Please provide an Anthropic API key.")
+    else:
+        try:
+            from pawpal_agent import PawPalAgent
+
+            with st.spinner("Agent is reasoning through your schedule..."):
+                agent = PawPalAgent(owner, api_key=api_key)
+                result = agent.run(user_request)
+
+            st.markdown("#### Agent Tool Steps")
+            st.caption(f"The agent completed its plan in **{result['step_count']}** tool-call steps.")
+            for i, step in enumerate(result["steps"], 1):
+                with st.expander(f"Step {i}: `{step['tool']}`", expanded=False):
+                    st.json(step["input"])
+                    st.json(step["output"])
+
+            st.markdown("#### AI-Generated Care Plan")
+            st.markdown(result["plan"])
+
+            with st.spinner("Running self-check guardrail..."):
+                validation = agent.validate_plan(result)
+
+            st.markdown("#### Self-Check Validation")
+            if validation.get("valid"):
+                st.success(f"Plan validated — Confidence: {validation.get('confidence', 'N/A')}")
+            else:
+                st.warning(f"Validation flagged issues — Confidence: {validation.get('confidence', 'N/A')}")
+            if validation.get("issues"):
+                for issue in validation["issues"]:
+                    st.write(f"- {issue}")
+
+        except ImportError:
+            st.error("Install the anthropic SDK: `pip install anthropic`")
+        except Exception as e:
+            st.error(f"Agent error: {e}")
+
+st.divider()
+
+# ── Task Completion ─────────────────────────────────────────────────
 st.subheader("Complete a Task (demo)")
 st.caption("Marking a daily/weekly task complete will automatically create the next occurrence.")
 
@@ -180,7 +218,6 @@ else:
     if not todays_incomplete:
         st.info("No incomplete tasks due today for this pet.")
     else:
-        # Pick a single task to mark complete (simpler than a button per-row).
         task_labels = [
             f"{t.at.strftime('%H:%M')} - {t.description} ({t.frequency})" for t in todays_incomplete
         ]

@@ -1,0 +1,28 @@
+flowchart TD
+    User["👤 User<br/>(CLI or Streamlit UI)"]
+    Agent["🤖 PawPalAgent<br/>(Claude API)"]
+    Tools["🔧 Tool Dispatcher"]
+    Scheduler["📅 Scheduler"]
+    Owner["📋 Owner / Pet / Task<br/>(Data Model)"]
+    Validate["✅ Self-Check Guardrail<br/>(Second Claude Call)"]
+    Output["📝 Final Care Plan<br/>(with explanations)"]
+
+    User -->|"1. User request<br/>(e.g. 'Plan my day')"| Agent
+    Agent -->|"2. Tool calls<br/>(multi-step reasoning)"| Tools
+    Tools -->|"get_schedule"| Scheduler
+    Tools -->|"filter_tasks"| Scheduler
+    Tools -->|"detect_conflicts"| Scheduler
+    Tools -->|"get_pet_info"| Owner
+    Scheduler -->|"reads"| Owner
+    Scheduler -->|"3. JSON results"| Tools
+    Owner -->|"3. JSON results"| Tools
+    Tools -->|"4. Tool results<br/>fed back to Claude"| Agent
+    Agent -->|"5. AI-generated plan"| Validate
+    Validate -->|"6. Verified plan<br/>+ confidence score"| Output
+    Output -->|"7. Display to user"| User
+
+    style Agent fill:#e8d5f5,stroke:#7b2d8e
+    style Validate fill:#d5f5e3,stroke:#1e8449
+    style Tools fill:#fdebd0,stroke:#d68910
+    style Scheduler fill:#d6eaf8,stroke:#2e86c1
+    style Owner fill:#d6eaf8,stroke:#2e86c1
