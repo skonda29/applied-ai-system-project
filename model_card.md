@@ -42,12 +42,12 @@ An early AI suggestion was to have the agent directly manipulate the schedule (r
 
 ### Test Results
 
-**13 out of 13 tests passed** across three categories:
+**15 out of 15 tests passed** across three categories:
 
 | Category | Tests | Result |
 |---|---|---|
-| Core Scheduler (sorting, filtering, conflicts, recurrence) | 6 | 6/6 passed |
-| Agent Tool Dispatch (get_schedule, filter_tasks, detect_conflicts, get_pet_info) | 5 | 5/5 passed |
+| Core Scheduler (sorting, filtering, conflicts, recurrence, guardrails) | 8 | 8/8 passed |
+| Agent Tool Dispatch (get_schedule, filter_tasks, detect_conflicts, get_pet_info, unknown tool) | 5 | 5/5 passed |
 | Agent Loop & Validation (mocked Claude API, JSON parsing) | 2 | 2/2 passed |
 
 ### Reliability Mechanisms
@@ -62,7 +62,7 @@ The agent sometimes reordered its tool calls in unexpected ways — occasionally
 
 ## Evaluation Metrics
 
-- **Functional correctness**: 13/13 automated tests pass.
+- **Functional correctness**: 15/15 automated tests pass.
 - **Plan completeness**: Self-check guardrail verifies all tasks appear in the final plan.
 - **Conflict detection accuracy**: 100% for exact-time conflicts in test cases.
 - **Confidence scores**: Validation typically returns "High" confidence when all tasks and conflicts are properly addressed.

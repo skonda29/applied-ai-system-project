@@ -1,8 +1,31 @@
-"""PawPal+ CLI demo — shows both the deterministic scheduler and the AI agent."""
-
+import logging
+import os
 from datetime import date, time, timedelta
 
-from pawpal_system import Owner, Pet, Scheduler, Task
+from pawpal_system import Owner, Pet, PlannerResult, Scheduler, Task
+
+
+def print_plan(result: PlannerResult, scheduler: Scheduler) -> None:
+    print("Agentic Daily Plan")
+    print("-" * 18)
+    print(scheduler.format_schedule(result.schedule))
+    print(f"\nConfidence: {result.confidence_score:.2f}")
+
+    if result.warnings:
+        print("\nWarnings")
+        print("-" * 8)
+        for warning in result.warnings:
+            print(f"- {warning}")
+
+    print("\nExecution Trace")
+    print("-" * 15)
+    for step in result.trace:
+        print(f"- {step}")
+
+    print("\nHuman Review")
+    print("-" * 12)
+    for note in result.review_notes:
+        print(f"- {note}")
 
 
 def build_demo_owner() -> Owner:
@@ -11,59 +34,65 @@ def build_demo_owner() -> Owner:
 
     mochi = Pet(pet_id="pet-1", name="Mochi", species="dog")
     luna = Pet(pet_id="pet-2", name="Luna", species="cat")
-
     owner.add_pet(mochi)
     owner.add_pet(luna)
 
     today = date.today()
 
-    mochi.add_task(Task(description="Dinner", at=time(18, 30), due_date=today, frequency="daily"))
-    luna.add_task(Task(description="Meds", at=time(9, 15), due_date=today, frequency="daily"))
-    mochi.add_task(Task(description="Morning walk", at=time(8, 0), due_date=today, frequency="daily"))
-    luna.add_task(Task(description="Play time", at=time(8, 0), due_date=today, frequency="once"))
-    mochi.add_task(Task(description="Grooming", at=time(14, 0), due_date=today, frequency="weekly"))
-    luna.add_task(Task(description="Vet checkup", at=time(14, 0), due_date=today, frequency="once"))
-
+    mochi.add_task(
+        Task(
+            description="Morning walk",
+            at=time(8, 0),
+            due_date=today,
+            frequency="daily",
+            duration_minutes=30,
+            priority="high",
+        )
+    )
+    luna.add_task(
+        Task(
+            description="Medication",
+            at=time(8, 15),
+            due_date=today,
+            frequency="daily",
+            duration_minutes=10,
+            priority="critical",
+        )
+    )
+    mochi.add_task(
+        Task(
+            description="Dinner",
+            at=time(18, 30),
+            due_date=today,
+            frequency="daily",
+            duration_minutes=20,
+            priority="high",
+        )
+    )
+    luna.add_task(
+        Task(
+            description="Play time",
+            at=time(19, 0),
+            due_date=today,
+            frequency="once",
+            duration_minutes=25,
+            priority="medium",
+        )
+    )
     return owner
 
 
-def run_scheduler_demo(owner: Owner) -> None:
-    """Run the original deterministic scheduler demo."""
-    print("=" * 60)
-    print("PART 1: Deterministic Scheduler")
-    print("=" * 60)
-
-    scheduler = Scheduler()
+def run_deterministic_demo(owner: Owner) -> None:
+    """Run the rule-based scheduler demo."""
     today = date.today()
-    schedule, warnings = scheduler.build_schedule(owner=owner, day=today)
+    scheduler = Scheduler()
 
-    print("\nToday's Schedule")
-    print("-" * 16)
-    print(scheduler.format_schedule(schedule))
-    if warnings:
-        print("\nWarnings")
-        print("-" * 8)
-        for w in warnings:
-            print(f"  - {w}")
+    print("=" * 50)
+    print("PART 1: Rule-Based Scheduler")
+    print("=" * 50)
 
-    print("\nFiltered (Mochi, incomplete)")
-    print("-" * 26)
-    mochi_pairs = scheduler.filter_tasks(owner=owner, day=today, pet_name="Mochi", completed=False)
-    mochi_only_schedule = [
-        {
-            "time": t.at,
-            "date": t.due_date,
-            "pet_name": p.name,
-            "pet_id": p.pet_id,
-            "species": p.species,
-            "description": t.description,
-            "frequency": t.frequency,
-            "completed": t.completed,
-        }
-        for (p, t) in mochi_pairs
-    ]
-    mochi_only_schedule.sort(key=lambda x: (x["time"], x["description"]))
-    print(scheduler.format_schedule(mochi_only_schedule))
+    result = scheduler.generate_agentic_plan(owner=owner, day=today, available_minutes=60)
+    print_plan(result, scheduler)
 
     print("\nRecurring demo")
     print("-" * 14)
@@ -74,71 +103,67 @@ def run_scheduler_demo(owner: Owner) -> None:
     tomorrow_pairs = scheduler.filter_tasks(owner=owner, day=tomorrow, pet_name="Mochi", completed=False)
     if tomorrow_pairs:
         print("Tomorrow's newly generated tasks for Mochi:")
-        for t in scheduler.sort_by_time([t for (_p, t) in tomorrow_pairs]):
-            print(f"  - {t.due_date.isoformat()} {t.at.strftime('%H:%M')} {t.description} ({t.frequency})")
+        for task in scheduler.sort_by_time([task for (_pet, task) in tomorrow_pairs]):
+            print(
+                f"- {task.due_date.isoformat()} {task.at.strftime('%H:%M')} "
+                f"{task.description} ({task.frequency})"
+            )
     else:
         print("No recurring tasks were generated for tomorrow.")
 
 
 def run_agent_demo(owner: Owner) -> None:
-    """Run the AI agent demo with observable intermediate steps."""
-    print("\n" + "=" * 60)
-    print("PART 2: AI Agent Workflow")
-    print("=" * 60)
+    """Run the Claude-powered AI agent demo with observable intermediate steps."""
+    from pawpal_agent import PawPalAgent
 
-    try:
-        from pawpal_agent import PawPalAgent
-    except ImportError as e:
-        print(f"\nCould not import agent module: {e}")
-        print("Make sure 'anthropic' is installed: pip install anthropic")
-        return
-
-    import os
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        print("\nSet ANTHROPIC_API_KEY to run the AI agent demo.")
-        print("  export ANTHROPIC_API_KEY='your-key-here'")
-        return
+    print("\n" + "=" * 50)
+    print("PART 2: Claude AI Agent (Multi-Step Tool-Calling)")
+    print("=" * 50)
 
     agent = PawPalAgent(owner)
+    plan_result = agent.run("Please build today's care plan for all my pets.")
 
-    print("\n[Agent] Starting multi-step planning...\n")
-    result = agent.run("Build a complete care plan for today. Pay attention to conflicts and suggest how to resolve them.")
+    print("\n--- Agent Intermediate Steps ---")
+    for i, step in enumerate(plan_result["steps"], 1):
+        print(f"\nStep {i}: tool={step['tool']}")
+        print(f"  Input:  {step['input']}")
+        output_preview = str(step["output"])
+        if len(output_preview) > 200:
+            output_preview = output_preview[:200] + "..."
+        print(f"  Output: {output_preview}")
 
-    print(f"[Agent] Completed in {result['step_count']} tool-call steps.\n")
+    print(f"\nTotal tool calls: {plan_result['step_count']}")
 
-    print("--- Agent Tool Steps ---")
-    for i, step in enumerate(result["steps"], 1):
-        print(f"\n  Step {i}: {step['tool']}({step['input']})")
-        if "warnings" in step["output"]:
-            print(f"    Warnings: {step['output']['warnings']}")
-        if "conflicts" in step["output"]:
-            print(f"    Conflicts: {step['output']['conflicts']}")
-        if "schedule" in step["output"]:
-            print(f"    Tasks found: {len(step['output']['schedule'])}")
-        if "pets" in step["output"]:
-            print(f"    Pets: {[p['name'] for p in step['output']['pets']]}")
-        if "tasks" in step["output"]:
-            print(f"    Tasks: {len(step['output']['tasks'])}")
+    print("\n--- AI-Generated Care Plan ---")
+    print(plan_result["plan"])
 
-    print("\n--- AI Care Plan ---")
-    print(result["plan"])
-
-    print("\n--- Self-Check Guardrail ---")
-    validation = agent.validate_plan(result)
-    print(f"  Valid: {validation.get('valid')}")
-    print(f"  Confidence: {validation.get('confidence')}")
+    print("\n--- Self-Check Validation ---")
+    validation = agent.validate_plan(plan_result)
+    print(f"Valid: {validation.get('valid')}")
+    print(f"Confidence: {validation.get('confidence')}")
     if validation.get("issues"):
-        print(f"  Issues: {validation['issues']}")
+        print("Issues:")
+        for issue in validation["issues"]:
+            print(f"  - {issue}")
     else:
-        print("  Issues: None")
+        print("No issues found.")
 
 
 def main() -> None:
-    owner = build_demo_owner()
-    run_scheduler_demo(owner)
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
-    owner2 = build_demo_owner()
-    run_agent_demo(owner2)
+    owner = build_demo_owner()
+    run_deterministic_demo(owner)
+
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        owner_fresh = build_demo_owner()
+        run_agent_demo(owner_fresh)
+    else:
+        print("\n" + "=" * 50)
+        print("PART 2: Claude AI Agent (skipped)")
+        print("=" * 50)
+        print("Set ANTHROPIC_API_KEY to enable the AI agent demo.")
+        print("Example: ANTHROPIC_API_KEY=sk-... python main.py")
 
 
 if __name__ == "__main__":
